@@ -218,7 +218,7 @@ class DbAdapter(ABC):
 
     async def exists(self, table: str, where: dict[str, Any]) -> bool:
         """Check if row exists."""
-        conditions = [f"{self._sql_name(k)} = {self._placeholder(k)}" for k in where.keys()]
+        conditions = [f"{self._sql_name(k)} = {self._placeholder(k)}" for k in where]
         query = f"SELECT 1 FROM {table} WHERE {' AND '.join(conditions)} LIMIT 1"
         result = await self.fetch_one(query, where)
         return result is not None

@@ -50,7 +50,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 
 from .endpoint_base import BaseEndpoint

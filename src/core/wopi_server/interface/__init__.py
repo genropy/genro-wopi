@@ -40,7 +40,7 @@ Note:
 from .api_base import create_app
 from .api_base import register_endpoint as register_api_endpoint
 from .cli_base import register_endpoint as register_cli_endpoint
-from .endpoint_base import BaseEndpoint, POST
+from .endpoint_base import POST, BaseEndpoint
 
 __all__ = [
     "BaseEndpoint",
