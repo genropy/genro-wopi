@@ -71,6 +71,9 @@ all = [
     "genro-wopi[dev,docs,cli,postgresql]",
 ]
 
+[project.scripts]
+wopi-proxy = "core.wopi_server:main"
+
 [project.urls]
 Homepage = "https://github.com/genropy/genro-wopi"
 Documentation = "https://genro-wopi.readthedocs.io"

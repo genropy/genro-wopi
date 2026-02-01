@@ -39,4 +39,11 @@ __all__ = [
     "WopiConfig",
     "WopiProxy",
     "WopiServerBase",
+    "main",
 ]
+
+
+def main() -> None:
+    """CLI entry point. Creates a WopiProxy and runs the CLI."""
+    proxy = WopiProxy()
+    proxy.cli()

@@ -51,7 +51,7 @@ class WopiConfig:
         wopi = WopiProxy(config=config)
     """
 
-    db_path: str = "/data/wopi_server.db"
+    db_path: str = "./wopi_server.db"
     """SQLite database path for persistence."""
 
     instance_name: str = "wopi-server"

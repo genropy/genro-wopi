@@ -182,6 +182,7 @@ class WopiServerBase:
         await self.db.table("storages").sync_schema()
         await self.db.table("command_log").sync_schema()
         await self.db.table("instance").sync_schema()
+        await self.db.table("sessions").sync_schema()
 
         # Edition detection and default tenant creation
         await self._init_edition()
