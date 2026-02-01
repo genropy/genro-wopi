@@ -2,7 +2,8 @@
 """Main WopiProxy class: WOPI protocol implementation.
 
 WopiProxy extends WopiServerBase with WOPI protocol handlers
-for document editing integration with Collabora Online.
+for document editing integration with WOPI-compatible clients
+(Collabora Online, OnlyOffice, Microsoft 365, etc.).
 
 This is a stub implementation - the actual WOPI protocol handlers
 will be implemented in future development phases.
@@ -13,7 +14,7 @@ Usage:
 
     config = WopiConfig(
         db_path="/data/wopi.db",
-        default_collabora_url="https://collabora.softwell.it",
+        default_wopi_client_url="https://collabora.softwell.it",
     )
     proxy = WopiProxy(config=config)
 
@@ -40,7 +41,7 @@ class WopiProxy(WopiServerBase):
     """WOPI protocol proxy service.
 
     Extends WopiServerBase with WOPI protocol implementation for
-    document editing integration with Collabora Online.
+    document editing integration with WOPI-compatible clients.
 
     Attributes:
         config: WopiConfig instance

@@ -4,14 +4,14 @@ WOPI (Web Application Open Platform Interface) implementation for the Genropy fr
 
 ## Status
 
-**Development Status: Pre-Alpha**
+**Development Status: Alpha**
 
-This project is in early planning phase. No implementation code yet.
+Core infrastructure implemented. WOPI protocol handlers in development.
 
 ## Description
 
 genro-wopi provides WOPI protocol support for integrating document editing capabilities
-with Collabora Online, LibreOffice Online, and other WOPI-compatible editors.
+with WOPI-compatible editors (Collabora Online, OnlyOffice, Microsoft 365, etc.).
 
 ## Features (Planned)
 

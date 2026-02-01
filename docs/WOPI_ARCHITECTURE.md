@@ -6,13 +6,13 @@
 
 ## Overview
 
-This document describes the architectural model for integrating Collabora Online with Genropy applications via the WOPI (Web Application Open Platform Interface) protocol.
+This document describes the architectural model for integrating WOPI-compatible editors (Collabora Online, OnlyOffice, Microsoft 365, etc.) with Genropy applications via the WOPI protocol.
 
 ## Key Concepts
 
 ### What is WOPI?
 
-WOPI is a REST-based protocol that enables office applications (like Collabora Online) to access and edit files stored in a host application. The protocol defines how the office application communicates with the file storage system.
+WOPI is a REST-based protocol that enables office applications (Collabora Online, OnlyOffice, Microsoft 365) to access and edit files stored in a host application. The protocol defines how the office application communicates with the file storage system.
 
 ```
 ┌─────────────┐      ┌─────────────────┐      ┌─────────────────┐
@@ -40,8 +40,8 @@ WOPI is a REST-based protocol that enables office applications (like Collabora O
 
 | Component | Role | Example |
 |-----------|------|---------|
-| **Browser** | User interface, loads Collabora in iframe | User's browser |
-| **Collabora** | Office editor (renders/edits documents) | `collabora.example.com` |
+| **Browser** | User interface, loads WOPI client in iframe | User's browser |
+| **WOPI Client** | Office editor (renders/edits documents) | `collabora.example.com` |
 | **WOPI Host** | File storage and access management | `wopi.softwell.it` (genro-wopi) |
 | **Gestionale** | Application generating document URLs | Genropy application |
 
@@ -50,8 +50,8 @@ WOPI is a REST-based protocol that enables office applications (like Collabora O
 ### Central WOPI Host (Recommended)
 
 genro-wopi runs as a centralized service managed by Softwell. Tenants can use either:
-- A shared Collabora instance (Softwell pool)
-- Their own Collabora instance (customer-managed)
+- A shared WOPI client instance (Softwell pool - currently Collabora)
+- Their own WOPI client instance (customer-managed)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -193,26 +193,26 @@ genro-wopi must implement these WOPI endpoints:
     "wopi": {
         "enabled": True,
         "mode": "own",  # "pool" | "own" | "disabled"
-        "collabora_url": "https://office.acme.it",  # only for mode="own"
+        "wopi_client_url": "https://office.acme.it",  # only for mode="own"
     }
 }
 ```
 
-### Resolving Collabora URL
+### Resolving WOPI Client URL
 
 ```python
-DEFAULT_COLLABORA_URL = "https://collabora.softwell.it"
+DEFAULT_WOPI_CLIENT_URL = "https://collabora.softwell.it"
 
-def get_collabora_url(tenant_id: str) -> str | None:
+def get_wopi_client_url(tenant_id: str) -> str | None:
     config = get_tenant_config(tenant_id)
 
     if not config.wopi.enabled or config.wopi.mode == "disabled":
         return None
 
     if config.wopi.mode == "own":
-        return config.wopi.collabora_url
+        return config.wopi.wopi_client_url
 
-    return DEFAULT_COLLABORA_URL  # pool mode
+    return DEFAULT_WOPI_CLIENT_URL  # pool mode
 ```
 
 ## Data Flow Summary
@@ -223,7 +223,7 @@ def get_collabora_url(tenant_id: str) -> str | None:
 1. User clicks "Edit" in Gestionale
 
 2. Gestionale (backend):
-   - Determines tenant's Collabora URL
+   - Determines tenant's WOPI client URL
    - Generates JWT access_token
    - Returns editor URL to browser
 

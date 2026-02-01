@@ -11,7 +11,7 @@ Example:
         wopi-server tenants list
         wopi-server tenants get --tenant-id acme
         wopi-server tenants delete --tenant-id acme
-        wopi-server tenants update --tenant-id acme --wopi-mode own --collabora-url https://...
+        wopi-server tenants update --tenant-id acme --wopi-mode own --wopi-client-url https://...
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ class WopiMode(str, Enum):
     """WOPI mode for tenant configuration.
 
     Attributes:
-        POOL: Use Softwell shared Collabora pool.
-        OWN: Use tenant's own Collabora server.
+        POOL: Use Softwell shared WOPI client pool.
+        OWN: Use tenant's own WOPI client server.
         DISABLED: WOPI editing disabled for this tenant.
     """
 
@@ -58,7 +58,7 @@ class TenantEndpoint(BaseEndpoint):
                 id="acme",
                 name="Acme Corp",
                 wopi_mode="own",
-                collabora_url="https://collabora.acme.com",
+                wopi_client_url="https://collabora.acme.com",
             )
 
             # List tenants
@@ -81,7 +81,7 @@ class TenantEndpoint(BaseEndpoint):
         id: str,
         name: str | None = None,
         wopi_mode: str = "pool",
-        collabora_url: str | None = None,
+        wopi_client_url: str | None = None,
         client_auth: dict[str, Any] | None = None,
         client_base_url: str | None = None,
         active: bool = True,
@@ -92,7 +92,7 @@ class TenantEndpoint(BaseEndpoint):
             id: Tenant identifier (unique).
             name: Human-readable tenant name.
             wopi_mode: WOPI mode ("pool", "own", "disabled"). Default "pool".
-            collabora_url: Custom Collabora URL when wopi_mode="own".
+            wopi_client_url: Custom WOPI client URL when wopi_mode="own".
             client_auth: HTTP auth config for callbacks.
             client_base_url: Base URL for client HTTP callbacks.
             active: Whether tenant is active.
@@ -151,7 +151,7 @@ class TenantEndpoint(BaseEndpoint):
         tenant_id: str,
         name: str | None = None,
         wopi_mode: str | None = None,
-        collabora_url: str | None = None,
+        wopi_client_url: str | None = None,
         client_auth: dict[str, Any] | None = None,
         client_base_url: str | None = None,
         active: bool | None = None,
@@ -164,7 +164,7 @@ class TenantEndpoint(BaseEndpoint):
             tenant_id: Tenant identifier.
             name: New tenant name.
             wopi_mode: New WOPI mode.
-            collabora_url: New Collabora URL.
+            wopi_client_url: New WOPI client URL.
             client_auth: New auth config.
             client_base_url: New base URL.
             active: New active status.

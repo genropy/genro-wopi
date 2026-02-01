@@ -9,8 +9,8 @@ Enterprise Edition (EE) extends with full multi-tenant management via
 TenantsTable_EE mixin, adding API key authentication and tenant CRUD.
 
 Each tenant can configure:
-    - Collabora mode: pool (Softwell shared), own (customer server), disabled
-    - Custom Collabora URL (for mode="own")
+    - WOPI client mode: pool (Softwell shared), own (customer server), disabled
+    - Custom WOPI client URL (for mode="own")
     - Client authentication (for callbacks)
 
 Example:
@@ -40,7 +40,7 @@ from sql import Integer, String, Table, Timestamp
 class TenantsTable(Table):
     """Tenant configuration storage table.
 
-    Manages tenant settings including WOPI mode and Collabora configuration.
+    Manages tenant settings including WOPI mode and WOPI client configuration.
 
     Attributes:
         name: Table name ("tenants").
@@ -50,7 +50,7 @@ class TenantsTable(Table):
         - id: Tenant identifier (primary key)
         - name: Display name
         - wopi_mode: "pool" (Softwell shared), "own" (custom server), "disabled"
-        - collabora_url: Custom Collabora URL when wopi_mode="own"
+        - wopi_client_url: Custom WOPI client URL when wopi_mode="own"
         - client_auth: JSON dict with HTTP auth config for callbacks
         - client_base_url: Base URL for client callbacks
         - active: 0/1 flag for tenant status
@@ -68,7 +68,7 @@ class TenantsTable(Table):
 
             # Check WOPI mode
             if tenant["wopi_mode"] == "own":
-                collabora_url = tenant["collabora_url"]
+                wopi_client_url = tenant["wopi_client_url"]
     """
 
     name = "tenants"
@@ -81,7 +81,7 @@ class TenantsTable(Table):
             id: Tenant identifier (primary key string).
             name: Human-readable tenant name.
             wopi_mode: WOPI mode ("pool", "own", "disabled"). Default "pool".
-            collabora_url: Custom Collabora server URL (for wopi_mode="own").
+            wopi_client_url: Custom WOPI client URL (for wopi_mode="own").
             client_auth: JSON dict with auth method, credentials for callbacks.
             client_base_url: Base URL for client HTTP callbacks.
             active: 1=active, 0=disabled (INTEGER for SQLite).
@@ -94,7 +94,7 @@ class TenantsTable(Table):
         c.column("id", String)
         c.column("name", String)
         c.column("wopi_mode", String, default="pool")  # pool, own, disabled
-        c.column("collabora_url", String)  # Custom Collabora URL for wopi_mode="own"
+        c.column("wopi_client_url", String)  # Custom WOPI client URL for wopi_mode="own"
         c.column("client_auth", String, json_encoded=True)
         c.column("client_base_url", String)
         c.column("active", Integer, default=1)
@@ -201,15 +201,15 @@ class TenantsTable(Table):
         result = await self.delete(where={"id": tenant_id})
         return result > 0
 
-    async def get_collabora_url(self, tenant_id: str, default_url: str) -> str | None:
-        """Get effective Collabora URL for a tenant.
+    async def get_wopi_client_url(self, tenant_id: str, default_url: str) -> str | None:
+        """Get effective WOPI client URL for a tenant.
 
         Args:
             tenant_id: Tenant identifier.
-            default_url: Pool Collabora URL (Softwell shared).
+            default_url: Pool WOPI client URL (Softwell shared).
 
         Returns:
-            Collabora URL to use, or None if WOPI is disabled.
+            WOPI client URL to use, or None if WOPI is disabled.
         """
         tenant = await self.get(tenant_id)
         if not tenant:
@@ -219,7 +219,7 @@ class TenantsTable(Table):
         if mode == "disabled":
             return None
         elif mode == "own":
-            return tenant.get("collabora_url") or default_url
+            return tenant.get("wopi_client_url") or default_url
         else:  # pool
             return default_url
 

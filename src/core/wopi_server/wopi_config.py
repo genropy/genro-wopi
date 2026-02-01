@@ -13,7 +13,7 @@ Architecture:
 Usage:
     config = WopiConfig(
         db_path="/data/wopi.db",
-        default_collabora_url="https://collabora.softwell.it",
+        default_wopi_client_url="https://collabora.softwell.it",
     )
     wopi = WopiProxy(config=config)
 
@@ -37,7 +37,7 @@ class WopiConfig:
         instance_name: Service identifier for display
         port: Default API server port
         api_token: Optional bearer token for API auth
-        default_collabora_url: Pool Collabora server URL
+        default_wopi_client_url: Pool WOPI client server URL
         wopi_token_ttl: WOPI access token TTL in seconds
         test_mode: Disable auto-processing for tests
         start_active: Start processing immediately
@@ -45,7 +45,7 @@ class WopiConfig:
     Example:
         config = WopiConfig(
             db_path="/data/wopi.db",
-            default_collabora_url="https://collabora.softwell.it",
+            default_wopi_client_url="https://collabora.softwell.it",
             wopi_token_ttl=3600,
         )
         wopi = WopiProxy(config=config)
@@ -63,8 +63,8 @@ class WopiConfig:
     api_token: str | None = None
     """API authentication token. If None, no auth required."""
 
-    default_collabora_url: str = "https://collabora.softwell.it"
-    """Default Collabora Online server URL (Softwell pool)."""
+    default_wopi_client_url: str = "https://collabora.softwell.it"
+    """Default WOPI client server URL (Softwell pool). Can be Collabora, OnlyOffice, etc."""
 
     wopi_token_ttl: int = 3600
     """WOPI access token time-to-live in seconds (default 1 hour)."""

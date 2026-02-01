@@ -10,7 +10,7 @@
 
 ### Project Description
 WOPI (Web Application Open Platform Interface) implementation for the Genropy framework -
-enables integration with Collabora Online, LibreOffice Online, and other WOPI-compatible editors.
+enables integration with WOPI-compatible editors (Collabora Online, OnlyOffice, Microsoft 365, etc.).
 
 ### Architecture
 
@@ -33,8 +33,8 @@ src/
 ### Multi-Tenant WOPI Model
 
 Tenants can operate in three modes:
-- **pool**: Use Softwell shared Collabora server (default)
-- **own**: Use tenant's own Collabora server (requires collabora_url)
+- **pool**: Use Softwell shared WOPI client server (default)
+- **own**: Use tenant's own WOPI client server (requires wopi_client_url)
 - **disabled**: WOPI editing disabled
 
 ### Key Files

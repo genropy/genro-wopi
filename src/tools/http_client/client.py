@@ -85,20 +85,20 @@ class Tenant:
     id: str
     name: str | None = None
     wopi_mode: str = "pool"
-    collabora_url: str | None = None
+    wopi_client_url: str | None = None
     active: bool = True
     extra: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Tenant:
         """Create Tenant from API response dict."""
-        known = {"id", "name", "wopi_mode", "collabora_url", "active"}
+        known = {"id", "name", "wopi_mode", "wopi_client_url", "active"}
         extra = {k: v for k, v in data.items() if k not in known}
         return cls(
             id=data["id"],
             name=data.get("name"),
             wopi_mode=data.get("wopi_mode", "pool"),
-            collabora_url=data.get("collabora_url"),
+            wopi_client_url=data.get("wopi_client_url"),
             active=data.get("active", True),
             extra=extra,
         )
@@ -151,7 +151,7 @@ class TenantsAPI:
         id: str,
         name: str | None = None,
         wopi_mode: str = "pool",
-        collabora_url: str | None = None,
+        wopi_client_url: str | None = None,
         active: bool = True,
     ) -> Tenant:
         """Add or update a tenant."""
@@ -159,7 +159,7 @@ class TenantsAPI:
             "id": id,
             "name": name,
             "wopi_mode": wopi_mode,
-            "collabora_url": collabora_url,
+            "wopi_client_url": wopi_client_url,
             "active": active,
         }
         data = await self._client._post("/tenants/add", payload)
