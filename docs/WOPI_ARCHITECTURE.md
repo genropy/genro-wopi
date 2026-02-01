@@ -177,11 +177,12 @@ genro-wopi must implement these WOPI endpoints:
 {
   "file_id": "abc123",
   "tenant_id": "acme",
-  "user_id": "user456",
   "permissions": ["view", "edit"],
   "exp": 1234567890
 }
 ```
+
+**Note**: No user identity is required. The tenant is the only identity needed for authorization.
 
 ## Configuration Example
 
@@ -215,33 +216,107 @@ def get_wopi_client_url(tenant_id: str) -> str | None:
     return DEFAULT_WOPI_CLIENT_URL  # pool mode
 ```
 
+## API Authentication Model
+
+### Three-Level Authentication
+
+| Level | Token | Who | Purpose |
+|-------|-------|-----|---------|
+| **Instance** | Admin token | Softwell | Manage tenants, global config |
+| **Tenant** | Tenant API key | Customer (Genropy) | Create sessions, manage storage |
+| **Account** | (none) | End user | Passed as parameter for audit |
+
+### Session Creation API (Tenant Level)
+
+```
+Authorization: Bearer <tenant_api_key>
+
+POST /api/sessions/create
+{
+  "storage_name": "attachments",
+  "file_path": "ordini/12345/preventivo.xlsx",
+  "permissions": ["view"],           // or ["view", "edit"]
+  "account": "sales",                // required - for audit
+  "user": "Mario Rossi",             // optional - for collaborative editing
+  "origin_connection_id": "conn_abc123",    // optional - Genropy connection for callbacks
+  "origin_page_id": "ordini_detail_12345"   // optional - Genropy page context
+}
+```
+
+**Response:**
+```json
+{
+  "session_id": "abc123",
+  "editor_url": "https://collabora.../cool.html?WOPISrc=...&access_token=...",
+  "expires_at": "2026-02-01T12:00:00Z"
+}
+```
+
+### Identity Model
+
+- **Tenant**: Identified by API key (authentication)
+- **Account**: Required parameter, used for audit. Can be a user or a group.
+- **User**: Optional parameter. When provided, included in audit and shown in collaborative editing.
+
+### Callback Context (Optional)
+
+When `origin_connection_id` and/or `origin_page_id` are provided, genro-wopi can send callbacks to Genropy:
+
+```
+POST {client_base_url}/wopi/callback
+{
+  "origin_connection_id": "conn_abc123",
+  "origin_page_id": "ordini_detail_12345",
+  "event": "document_saved",         // or "document_closed", "lock_acquired", etc.
+  "session_id": "abc123",
+  "file_path": "ordini/12345/preventivo.xlsx",
+  "timestamp": "2026-02-01T10:30:00Z"
+}
+```
+
+This enables Genropy to:
+- Notify the user when a document is saved
+- Update UI state when editing completes
+- Trigger workflows based on document events
+
+### Audit Trail
+
+All operations are logged with:
+- `tenant_id` (from authentication)
+- `account` (from request)
+- `user` (from request, if provided)
+- `action` (view, edit, save)
+- `file_path`
+- `timestamp`
+
 ## Data Flow Summary
 
 ### Opening a Document
 
 ```
-1. User clicks "Edit" in Gestionale
+1. User clicks "View/Edit" in Gestionale
 
 2. Gestionale (backend):
-   - Determines tenant's WOPI client URL
-   - Generates JWT access_token
-   - Returns editor URL to browser
+   - Authenticates with tenant API key
+   - Calls POST /api/sessions/create with:
+     - storage_name, file_path
+     - permissions (view or view+edit)
+     - account (for audit)
+     - user (optional, for collaborative)
+   - Receives editor_url
 
-3. Browser loads iframe:
-   https://[collabora-url]/browser/[discovery]/cool.html?
-   WOPISrc=https://wopi.softwell.it/wopi/files/[file_id]&
-   access_token=[jwt]
+3. Browser loads iframe with editor_url
 
-4. Collabora server:
+4. WOPI Client (Collabora/OnlyOffice):
    - Loads editor UI
    - Calls CheckFileInfo on WOPI host
    - Calls GetFile to load document
    - Renders document in browser
 
-5. User edits document
+5. User views/edits document
 
-6. Collabora server:
-   - Periodically calls PutFile to save
+6. WOPI Client (on save):
+   - Calls PutFile to save
    - Manages locks for concurrent editing
 ```
 
