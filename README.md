@@ -1,5 +1,9 @@
 # genro-wopi
 
+[![PyPI version](https://img.shields.io/pypi/v/genro-wopi?style=flat)](https://pypi.org/project/genro-wopi/)
+[![Tests](https://github.com/genropy/genro-wopi/actions/workflows/tests.yml/badge.svg)](https://github.com/genropy/genro-wopi/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/genropy/genro-wopi/branch/main/graph/badge.svg)](https://codecov.io/gh/genropy/genro-wopi)
+[![Documentation](https://readthedocs.org/projects/genro-wopi/badge/?version=latest)](https://genro-wopi.readthedocs.io/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -77,7 +81,7 @@ wopi-proxy sessions cleanup --dry-run
 
 ## Status
 
-**Development Status: Alpha**
+**Development Status: Beta**
 
 Core infrastructure implemented. WOPI protocol handlers in development.
 

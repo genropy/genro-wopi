@@ -17,19 +17,19 @@ from core.wopi_server.wopi_config import WopiConfig
 
 
 @pytest.fixture
-async def wopi():
-    """Create an initialized WopiServerBase with in-memory database."""
-    config = WopiConfig(db_path=":memory:")
-    server = WopiServerBase(config=config)
-    await server.init()
-    yield server
+async def db(tmp_path):
+    """Create database with schema only (no init logic)."""
+    server = WopiServerBase(WopiConfig(db_path=str(tmp_path / "test.db")))
+    await server.db.connect()
+    await server.db.check_structure()
+    yield server.db
     await server.close()
 
 
 @pytest.fixture
-async def sessions_table(wopi):
-    """Get sessions table from initialized server."""
-    return wopi.db.table("sessions")
+async def sessions_table(db):
+    """Get sessions table from database."""
+    return db.table("sessions")
 
 
 class TestSessionCreation:

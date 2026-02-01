@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "genro-wopi"
-version = "0.1.0"
+version = "0.1.1"
 description = "WOPI (Web Application Open Platform Interface) implementation for the Genropy framework"
 readme = "README.md"
 license = "Apache-2.0"
@@ -26,7 +26,7 @@ keywords = [
     "genropy"
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",

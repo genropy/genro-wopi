@@ -28,7 +28,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest --cov=genro_wopi --cov-report=xml --cov-report=term
+          pytest --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
@@ -38,3 +38,6 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
           verbose: true
+          flags: unittests
+          name: codecov-py311
+          disable_search: true
