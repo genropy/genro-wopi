@@ -148,3 +148,6 @@ Thumbs.db
 # Temporary files
 temp/*
 !temp/.gitignore
+
+# Database files
+*.db
