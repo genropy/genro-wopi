@@ -1,0 +1,1597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WOPI Demo Client - OnlyOffice</title>
+
+    <!-- Shoelace -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.12.0/cdn/themes/light.css" />
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.12.0/cdn/shoelace-autoloader.js"></script>
+
+    <style>
+        :root {
+            --sidebar-width: 320px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: var(--sl-font-sans);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: var(--sl-color-primary-600);
+            color: white;
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            overflow: visible;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 500;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            border-right: 1px solid var(--sl-color-neutral-200);
+            display: flex;
+            flex-direction: column;
+            background: var(--sl-color-neutral-50);
+        }
+
+        .sidebar-header {
+            padding: 1rem;
+            border-bottom: 1px solid var(--sl-color-neutral-200);
+            background: white;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow: auto;
+            padding: 0.5rem;
+        }
+
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--sl-color-neutral-100);
+        }
+
+        .editor-toolbar {
+            padding: 0.5rem 1rem;
+            background: white;
+            border-bottom: 1px solid var(--sl-color-neutral-200);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .editor-toolbar .file-info {
+            flex: 1;
+            font-size: 0.875rem;
+            color: var(--sl-color-neutral-600);
+        }
+
+        .editor-frame {
+            flex: 1;
+            border: none;
+            background: white;
+        }
+
+        .placeholder {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--sl-color-neutral-400);
+            font-size: 1.125rem;
+        }
+
+        /* Tree styling */
+        .tree-node {
+            user-select: none;
+        }
+
+        .tree-node-row {
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--sl-border-radius-medium);
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .tree-node-row:hover {
+            background: var(--sl-color-neutral-100);
+        }
+
+        .tree-node-row.selected {
+            background: var(--sl-color-primary-100);
+            color: var(--sl-color-primary-700);
+        }
+
+        .tree-node-row sl-icon {
+            font-size: 1rem;
+        }
+
+        .tree-node-row .expand-icon {
+            width: 16px;
+            text-align: center;
+            color: var(--sl-color-neutral-500);
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .tree-node-row .expand-icon:hover {
+            color: var(--sl-color-primary-600);
+        }
+
+        .tree-node-row .node-icon {
+            flex-shrink: 0;
+        }
+
+        .tree-node-row .node-label {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tree-children {
+            margin-left: 1rem;
+            display: none;
+        }
+
+        .tree-children.expanded {
+            display: block;
+        }
+
+        .tree-node.storage > .tree-node-row {
+            font-weight: 500;
+        }
+
+        .tree-node.storage > .tree-node-row .node-icon {
+            color: var(--sl-color-primary-600);
+        }
+
+        /* Legacy tree-item for compatibility */
+        .tree-item {
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: var(--sl-border-radius-medium);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tree-item:hover {
+            background: var(--sl-color-neutral-100);
+        }
+
+        .tree-item.selected {
+            background: var(--sl-color-primary-100);
+            color: var(--sl-color-primary-700);
+        }
+
+        .tree-item sl-icon {
+            font-size: 1rem;
+        }
+
+        .tree-folder {
+            margin-left: 1rem;
+        }
+
+        /* Status indicator */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--sl-color-neutral-400);
+        }
+
+        .status-dot.connected {
+            background: var(--sl-color-success-500);
+        }
+
+        .status-dot.modified {
+            background: var(--sl-color-warning-500);
+        }
+
+        /* New document dialog */
+        .new-doc-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            padding: 1rem 0;
+        }
+
+        .new-doc-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1.5rem 1rem;
+            border: 2px solid var(--sl-color-neutral-200);
+            border-radius: var(--sl-border-radius-large);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .new-doc-option:hover {
+            border-color: var(--sl-color-primary-500);
+            background: var(--sl-color-primary-50);
+        }
+
+        .new-doc-option sl-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .new-doc-option.docx sl-icon { color: #2b579a; }
+        .new-doc-option.xlsx sl-icon { color: #217346; }
+        .new-doc-option.pptx sl-icon { color: #d24726; }
+
+        /* Loading spinner */
+        .tree-loading {
+            color: var(--sl-color-neutral-400);
+            font-size: 0.8rem;
+            padding: 0.25rem 0.5rem;
+            margin-left: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <sl-icon name="file-earmark-text" style="font-size: 1.5rem;"></sl-icon>
+        <h1>WOPI Demo Client</h1>
+        <div style="flex: 1;"></div>
+        <sl-select id="tenant-select" placeholder="Select tenant" size="small" style="min-width: 150px;">
+            <sl-option value="default">default</sl-option>
+        </sl-select>
+        <sl-select id="storage-select" placeholder="Select storage" size="small" style="min-width: 150px;">
+            <sl-option value="local">local</sl-option>
+        </sl-select>
+        <sl-button size="small" id="btn-manage-storages" title="Manage Storages">
+            <sl-icon name="gear"></sl-icon>
+        </sl-button>
+        <sl-divider vertical style="height: 24px;"></sl-divider>
+        <sl-dropdown id="collabora-settings" placement="bottom-end">
+            <sl-button slot="trigger" size="small" caret>
+                <sl-icon slot="prefix" name="sliders"></sl-icon>
+                Editor UI
+            </sl-button>
+            <sl-menu>
+                <sl-menu-label>UI Mode</sl-menu-label>
+                <sl-menu-item type="checkbox" id="opt-notebookbar" checked>Notebookbar (Ribbon)</sl-menu-item>
+                <sl-menu-item type="checkbox" id="opt-classic">Classic (Menu)</sl-menu-item>
+                <sl-menu-item type="checkbox" id="opt-compact">Compact</sl-menu-item>
+                <sl-divider></sl-divider>
+                <sl-menu-label>UI Elements</sl-menu-label>
+                <sl-menu-item type="checkbox" id="opt-statusbar" checked>Status Bar</sl-menu-item>
+                <sl-menu-item type="checkbox" id="opt-ruler" checked>Ruler</sl-menu-item>
+                <sl-menu-item type="checkbox" id="opt-sidebar">Sidebar</sl-menu-item>
+                <sl-divider></sl-divider>
+                <sl-menu-label>Options</sl-menu-label>
+                <sl-menu-item type="checkbox" id="opt-darkmode">Dark Mode</sl-menu-item>
+                <sl-menu-item type="checkbox" id="opt-closebutton">Close Button</sl-menu-item>
+            </sl-menu>
+        </sl-dropdown>
+        <div class="status-dot" id="status-dot" title="Disconnected"></div>
+    </header>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <sl-button-group>
+                    <sl-button size="small" id="btn-new">
+                        <sl-icon slot="prefix" name="plus-lg"></sl-icon>
+                        New
+                    </sl-button>
+                    <sl-button size="small" id="btn-new-folder" title="New Folder">
+                        <sl-icon slot="prefix" name="folder-plus"></sl-icon>
+                    </sl-button>
+                    <sl-button size="small" id="btn-upload">
+                        <sl-icon slot="prefix" name="cloud-upload"></sl-icon>
+                        Upload
+                    </sl-button>
+                    <sl-button size="small" id="btn-delete" title="Delete" variant="danger" disabled>
+                        <sl-icon slot="prefix" name="trash"></sl-icon>
+                    </sl-button>
+                    <sl-button size="small" id="btn-refresh">
+                        <sl-icon slot="prefix" name="arrow-clockwise"></sl-icon>
+                    </sl-button>
+                </sl-button-group>
+            </div>
+            <div class="sidebar-content" id="file-tree">
+                <!-- File tree will be rendered here -->
+                <div class="placeholder" style="height: 200px; font-size: 0.875rem;">
+                    Loading storages...
+                </div>
+            </div>
+        </div>
+
+        <div class="editor-container">
+            <div class="editor-toolbar" id="editor-toolbar" style="display: none;">
+                <div class="file-info">
+                    <strong id="current-file-name">No file open</strong>
+                    <span id="current-file-status"></span>
+                </div>
+                <sl-button size="small" variant="primary" id="btn-save" disabled>
+                    <sl-icon slot="prefix" name="save"></sl-icon>
+                    Save
+                </sl-button>
+                <sl-button size="small" id="btn-close">
+                    <sl-icon slot="prefix" name="x-lg"></sl-icon>
+                    Close
+                </sl-button>
+            </div>
+            <iframe class="editor-frame" id="editor-frame" name="collabora-frame" style="display: none;"></iframe>
+            <div class="placeholder" id="editor-placeholder">
+                Select a file to edit or create a new document
+            </div>
+        </div>
+    </div>
+
+    <!-- New Document Dialog -->
+    <sl-dialog label="Create New Document" id="new-doc-dialog">
+        <div class="new-doc-options">
+            <div class="new-doc-option docx" data-type="docx">
+                <sl-icon name="file-earmark-word"></sl-icon>
+                <span>Document</span>
+            </div>
+            <div class="new-doc-option xlsx" data-type="xlsx">
+                <sl-icon name="file-earmark-excel"></sl-icon>
+                <span>Spreadsheet</span>
+            </div>
+            <div class="new-doc-option pptx" data-type="pptx">
+                <sl-icon name="file-earmark-ppt"></sl-icon>
+                <span>Presentation</span>
+            </div>
+        </div>
+        <sl-select id="new-doc-storage" placeholder="Select storage" style="margin-top: 1rem;"></sl-select>
+        <sl-input id="new-doc-path" placeholder="Path (e.g., /docs or /projects/2024)" value="/" style="margin-top: 0.5rem;"></sl-input>
+        <sl-input id="new-doc-name" placeholder="Document name" style="margin-top: 0.5rem;"></sl-input>
+        <sl-button slot="footer" variant="primary" id="btn-create-doc">Create</sl-button>
+    </sl-dialog>
+
+    <!-- Upload Document Dialog -->
+    <sl-dialog label="Upload Document" id="upload-dialog">
+        <sl-select id="upload-storage" placeholder="Select storage" style="margin-bottom: 1rem;"></sl-select>
+        <sl-input id="upload-path" placeholder="Destination path (e.g., /docs)" value="/" style="margin-bottom: 1rem;"></sl-input>
+        <input type="file" id="upload-file" accept=".docx,.xlsx,.pptx,.odt,.ods,.odp,.pdf,.txt,.md" style="margin-bottom: 1rem;">
+        <sl-button slot="footer" variant="primary" id="btn-upload-confirm">Upload</sl-button>
+    </sl-dialog>
+
+    <!-- New Folder Dialog -->
+    <sl-dialog label="Create New Folder" id="new-folder-dialog">
+        <sl-select id="new-folder-storage" placeholder="Select storage" style="margin-bottom: 1rem;"></sl-select>
+        <sl-input id="new-folder-parent" placeholder="Parent path (e.g., /docs)" value="/" style="margin-bottom: 1rem;"></sl-input>
+        <sl-input id="new-folder-name" placeholder="Folder name" style="margin-bottom: 1rem;"></sl-input>
+        <sl-button slot="footer" variant="primary" id="btn-create-folder">Create Folder</sl-button>
+    </sl-dialog>
+
+    <!-- Delete Confirmation Dialog -->
+    <sl-dialog label="Confirm Delete" id="delete-dialog">
+        <p id="delete-message">Are you sure you want to delete this item?</p>
+        <sl-button slot="footer" variant="neutral" id="btn-delete-cancel">Cancel</sl-button>
+        <sl-button slot="footer" variant="danger" id="btn-delete-confirm">Delete</sl-button>
+    </sl-dialog>
+
+    <!-- Manage Storages Dialog -->
+    <sl-dialog label="Manage Storages" id="storages-dialog" style="--width: 500px;">
+        <div id="storages-list" style="margin-bottom: 1rem; max-height: 200px; overflow-y: auto;">
+            <!-- Storage list will be rendered here -->
+        </div>
+        <sl-divider></sl-divider>
+        <h4 style="margin: 0.5rem 0;">Add New Storage</h4>
+        <sl-input id="new-storage-name" placeholder="Storage name (e.g., DOCUMENTS)" style="margin-bottom: 0.5rem;"></sl-input>
+        <sl-input id="new-storage-path" placeholder="Base path (e.g., /Users/me/Documents)" style="margin-bottom: 0.5rem;"></sl-input>
+        <sl-button variant="primary" size="small" id="btn-add-storage">
+            <sl-icon slot="prefix" name="plus-lg"></sl-icon>
+            Add Storage
+        </sl-button>
+    </sl-dialog>
+
+    <script type="module">
+        // Configuration
+        const CONFIG = {
+            wopiProxyUrl: 'http://localhost:8080',  // genro-wopi server (for browser API calls)
+            wopiProxyUrlForEditor: 'http://host.docker.internal:8080',  // WOPI URL from editor container perspective
+            onlyofficeUrl: 'http://localhost:9980',   // OnlyOffice Document Server (Docker)
+            // Tenant API keys (in production these would come from a secure source)
+            tenantKeys: {
+                'acme': 'iqQ63hT6fJB_DKmau_UQxabdEeNRN0pz3OpUEaG-2hc',
+            }
+        };
+
+        // Get tenant from URL path (e.g., /acme, /beta) or query param (?tenant=acme)
+        function getTenant() {
+            // First check query parameter (works with static file server)
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryTenant = urlParams.get('tenant');
+            if (queryTenant) {
+                return queryTenant;
+            }
+
+            // Fall back to path-based routing (requires server support)
+            const path = window.location.pathname;
+            const match = path.match(/^\/([a-zA-Z0-9_-]+)/);
+            if (match && !match[1].includes('.')) {  // Exclude filenames like index.html
+                return match[1];
+            }
+            return null;
+        }
+
+        // State
+        const pathTenant = getTenant();
+        const state = {
+            tenant: pathTenant || 'default',
+            apiKey: pathTenant ? CONFIG.tenantKeys[pathTenant] : null,
+            storage: null,
+            currentPath: '/',
+            currentSession: null,
+            isModified: false,
+            expandedNodes: new Set(),  // Track expanded tree nodes
+            loadedNodes: new Set(),    // Track nodes with loaded children
+        };
+
+        // DOM Elements
+        const elements = {
+            tenantSelect: document.getElementById('tenant-select'),
+            storageSelect: document.getElementById('storage-select'),
+            statusDot: document.getElementById('status-dot'),
+            fileTree: document.getElementById('file-tree'),
+            editorToolbar: document.getElementById('editor-toolbar'),
+            editorFrame: document.getElementById('editor-frame'),
+            editorPlaceholder: document.getElementById('editor-placeholder'),
+            currentFileName: document.getElementById('current-file-name'),
+            currentFileStatus: document.getElementById('current-file-status'),
+            btnNew: document.getElementById('btn-new'),
+            btnUpload: document.getElementById('btn-upload'),
+            btnRefresh: document.getElementById('btn-refresh'),
+            btnSave: document.getElementById('btn-save'),
+            btnClose: document.getElementById('btn-close'),
+            newDocDialog: document.getElementById('new-doc-dialog'),
+            newDocStorage: document.getElementById('new-doc-storage'),
+            newDocPath: document.getElementById('new-doc-path'),
+            newDocName: document.getElementById('new-doc-name'),
+            btnCreateDoc: document.getElementById('btn-create-doc'),
+            uploadDialog: document.getElementById('upload-dialog'),
+            uploadStorage: document.getElementById('upload-storage'),
+            uploadPath: document.getElementById('upload-path'),
+            uploadFile: document.getElementById('upload-file'),
+            btnUploadConfirm: document.getElementById('btn-upload-confirm'),
+            btnManageStorages: document.getElementById('btn-manage-storages'),
+            storagesDialog: document.getElementById('storages-dialog'),
+            storagesList: document.getElementById('storages-list'),
+            newStorageName: document.getElementById('new-storage-name'),
+            newStoragePath: document.getElementById('new-storage-path'),
+            btnAddStorage: document.getElementById('btn-add-storage'),
+            // New folder dialog
+            btnNewFolder: document.getElementById('btn-new-folder'),
+            newFolderDialog: document.getElementById('new-folder-dialog'),
+            newFolderStorage: document.getElementById('new-folder-storage'),
+            newFolderParent: document.getElementById('new-folder-parent'),
+            newFolderName: document.getElementById('new-folder-name'),
+            btnCreateFolder: document.getElementById('btn-create-folder'),
+            // Delete dialog
+            btnDelete: document.getElementById('btn-delete'),
+            deleteDialog: document.getElementById('delete-dialog'),
+            deleteMessage: document.getElementById('delete-message'),
+            btnDeleteCancel: document.getElementById('btn-delete-cancel'),
+            btnDeleteConfirm: document.getElementById('btn-delete-confirm'),
+        };
+
+        // Selection state for delete
+        state.selectedItem = null;  // { type: 'file'|'folder', storage: string, path: string }
+
+        // API calls
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const headers = { 'Content-Type': 'application/json' };
+            // Add API token if available
+            if (state.apiKey) {
+                headers['X-API-Token'] = state.apiKey;
+            }
+            const options = {
+                method,
+                headers,
+            };
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+            const response = await fetch(`${CONFIG.wopiProxyUrl}${endpoint}`, options);
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+            return response.json();
+        }
+
+        // Load tenants
+        async function loadTenants() {
+            try {
+                const tenants = await apiCall('/tenants/list');
+                elements.tenantSelect.innerHTML = '';
+                tenants.forEach(t => {
+                    const option = document.createElement('sl-option');
+                    option.value = t.id;
+                    option.textContent = t.name || t.id;
+                    elements.tenantSelect.appendChild(option);
+                });
+                if (tenants.length > 0) {
+                    elements.tenantSelect.value = tenants[0].id;
+                    state.tenant = tenants[0].id;
+                }
+            } catch (e) {
+                console.error('Failed to load tenants:', e);
+            }
+        }
+
+        // Load storages for tenant and render tree
+        async function loadStorages(tenantId) {
+            try {
+                const storages = await apiCall(`/storages/list?tenant_id=${tenantId}`);
+
+                // Populate dialog storage selects
+                const selects = [elements.storageSelect, elements.newDocStorage, elements.uploadStorage, elements.newFolderStorage];
+                selects.forEach(select => {
+                    select.innerHTML = '';
+                    storages.forEach(s => {
+                        const option = document.createElement('sl-option');
+                        option.value = s.name;
+                        option.textContent = s.name;
+                        select.appendChild(option);
+                    });
+                });
+
+                if (storages.length > 0) {
+                    elements.storageSelect.value = storages[0].name;
+                    elements.newDocStorage.value = storages[0].name;
+                    elements.uploadStorage.value = storages[0].name;
+                    elements.newFolderStorage.value = storages[0].name;
+                    state.storage = storages[0].name;
+                }
+
+                // Render tree with storages as root nodes
+                await renderStorageTree(storages);
+            } catch (e) {
+                console.error('Failed to load storages:', e);
+                elements.fileTree.innerHTML = `
+                    <div class="placeholder" style="height: 200px; font-size: 0.875rem;">
+                        Could not load storages. Check connection.
+                    </div>
+                `;
+            }
+        }
+
+        // Render the storage tree with all storages as root nodes
+        async function renderStorageTree(storages) {
+            if (!storages || storages.length === 0) {
+                elements.fileTree.innerHTML = `
+                    <div class="placeholder" style="height: 200px; font-size: 0.875rem;">
+                        No storages configured. Use ⚙️ to add one.
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            storages.forEach(s => {
+                const nodeId = `storage:${s.name}`;
+                const isExpanded = state.expandedNodes.has(nodeId);
+                html += `
+                    <div class="tree-node storage" data-node-id="${nodeId}" data-storage="${s.name}">
+                        <div class="tree-node-row">
+                            <span class="expand-icon">${isExpanded ? '▼' : '▶'}</span>
+                            <sl-icon class="node-icon" name="hdd"></sl-icon>
+                            <span class="node-label">${s.name}</span>
+                        </div>
+                        <div class="tree-children ${isExpanded ? 'expanded' : ''}" id="children-${nodeId.replace(':', '-')}">
+                            <!-- Children loaded on expand -->
+                        </div>
+                    </div>
+                `;
+            });
+
+            elements.fileTree.innerHTML = html;
+
+            // Add event handlers to storage nodes
+            elements.fileTree.querySelectorAll('.tree-node.storage').forEach(node => {
+                const row = node.querySelector('.tree-node-row');
+                const expandIcon = row.querySelector('.expand-icon');
+
+                // Click on expand icon toggles
+                expandIcon.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleStorageNode(node);
+                });
+
+                // Click on row also toggles
+                row.addEventListener('click', () => {
+                    toggleStorageNode(node);
+                });
+            });
+
+            // Restore expanded state - load expanded storages
+            for (const nodeId of state.expandedNodes) {
+                if (nodeId.startsWith('storage:')) {
+                    const storageName = nodeId.split(':')[1];
+                    const node = elements.fileTree.querySelector(`[data-node-id="${nodeId}"]`);
+                    if (node && !state.loadedNodes.has(nodeId)) {
+                        await loadStorageChildren(storageName, node);
+                    }
+                }
+            }
+        }
+
+        // Toggle storage node expansion
+        async function toggleStorageNode(node) {
+            const nodeId = node.dataset.nodeId;
+            const storageName = node.dataset.storage;
+            const childrenDiv = node.querySelector('.tree-children');
+            const expandIcon = node.querySelector('.expand-icon');
+
+            if (state.expandedNodes.has(nodeId)) {
+                // Collapse
+                state.expandedNodes.delete(nodeId);
+                childrenDiv.classList.remove('expanded');
+                expandIcon.textContent = '▶';
+            } else {
+                // Expand
+                state.expandedNodes.add(nodeId);
+                childrenDiv.classList.add('expanded');
+                expandIcon.textContent = '▼';
+
+                // Load children if not loaded
+                if (!state.loadedNodes.has(nodeId)) {
+                    await loadStorageChildren(storageName, node);
+                }
+            }
+        }
+
+        // Load children of a storage (root level)
+        async function loadStorageChildren(storageName, node) {
+            const nodeId = `storage:${storageName}`;
+            const childrenDiv = node.querySelector('.tree-children');
+
+            // Show loading
+            childrenDiv.innerHTML = '<div class="tree-loading">Loading...</div>';
+
+            try {
+                const files = await apiCall(`/storages/list_files?storage_name=${storageName}&path=/`);
+                state.loadedNodes.add(nodeId);
+                await renderChildren(childrenDiv, storageName, '/', files);
+            } catch (e) {
+                console.error('Failed to load storage contents:', e);
+                childrenDiv.innerHTML = '<div class="tree-loading" style="color: var(--sl-color-danger-500);">Error loading</div>';
+            }
+        }
+
+        // Load children of a folder
+        async function loadFolderChildren(storageName, path, node) {
+            const nodeId = `folder:${storageName}:${path}`;
+            const childrenDiv = node.querySelector('.tree-children');
+
+            // Show loading
+            childrenDiv.innerHTML = '<div class="tree-loading">Loading...</div>';
+
+            try {
+                const files = await apiCall(`/storages/list_files?storage_name=${storageName}&path=${encodeURIComponent(path)}`);
+                state.loadedNodes.add(nodeId);
+                await renderChildren(childrenDiv, storageName, path, files);
+            } catch (e) {
+                console.error('Failed to load folder contents:', e);
+                childrenDiv.innerHTML = '<div class="tree-loading" style="color: var(--sl-color-danger-500);">Error loading</div>';
+            }
+        }
+
+        // Render children (files and folders) into a container
+        async function renderChildren(container, storageName, parentPath, files) {
+            if (!files || files.length === 0) {
+                container.innerHTML = '<div class="tree-loading">Empty folder</div>';
+                return;
+            }
+
+            // Sort: folders first, then files
+            const sorted = [...files].sort((a, b) => {
+                const aIsDir = a.type === 'dir';
+                const bIsDir = b.type === 'dir';
+                if (aIsDir && !bIsDir) return -1;
+                if (!aIsDir && bIsDir) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            let html = '';
+            sorted.forEach(file => {
+                const fullPath = parentPath === '/' ? `/${file.name}` : `${parentPath}/${file.name}`;
+                const isDir = file.type === 'dir';
+
+                if (isDir) {
+                    const nodeId = `folder:${storageName}:${fullPath}`;
+                    const isExpanded = state.expandedNodes.has(nodeId);
+                    html += `
+                        <div class="tree-node folder" data-node-id="${nodeId}" data-storage="${storageName}" data-path="${fullPath}">
+                            <div class="tree-node-row">
+                                <span class="expand-icon">${isExpanded ? '▼' : '▶'}</span>
+                                <sl-icon class="node-icon" name="folder"></sl-icon>
+                                <span class="node-label">${file.name}</span>
+                            </div>
+                            <div class="tree-children ${isExpanded ? 'expanded' : ''}">
+                                <!-- Children loaded on expand -->
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const icon = getFileIcon(file.name);
+                    html += `
+                        <div class="tree-node file" data-storage="${storageName}" data-path="${fullPath}">
+                            <div class="tree-node-row">
+                                <span class="expand-icon"></span>
+                                <sl-icon class="node-icon" name="${icon}"></sl-icon>
+                                <span class="node-label">${file.name}</span>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = html;
+
+            // Add event handlers to folder nodes
+            container.querySelectorAll('.tree-node.folder').forEach(node => {
+                const row = node.querySelector('.tree-node-row');
+                const expandIcon = row.querySelector('.expand-icon');
+
+                expandIcon.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleFolderNode(node);
+                });
+
+                row.addEventListener('click', () => {
+                    toggleFolderNode(node);
+                });
+            });
+
+            // Add event handlers to file nodes
+            container.querySelectorAll('.tree-node.file').forEach(node => {
+                const row = node.querySelector('.tree-node-row');
+                row.addEventListener('click', () => {
+                    handleFileNodeClick(node);
+                });
+            });
+
+            // Restore expanded state for folders
+            for (const node of container.querySelectorAll('.tree-node.folder')) {
+                const nodeId = node.dataset.nodeId;
+                if (state.expandedNodes.has(nodeId) && !state.loadedNodes.has(nodeId)) {
+                    const storageName = node.dataset.storage;
+                    const path = node.dataset.path;
+                    await loadFolderChildren(storageName, path, node);
+                }
+            }
+        }
+
+        // Toggle folder node expansion
+        async function toggleFolderNode(node) {
+            const nodeId = node.dataset.nodeId;
+            const storageName = node.dataset.storage;
+            const path = node.dataset.path;
+            const childrenDiv = node.querySelector('.tree-children');
+            const expandIcon = node.querySelector('.expand-icon');
+
+            // Select the folder for delete purposes
+            selectFolderNode(node);
+
+            if (state.expandedNodes.has(nodeId)) {
+                // Collapse
+                state.expandedNodes.delete(nodeId);
+                childrenDiv.classList.remove('expanded');
+                expandIcon.textContent = '▶';
+            } else {
+                // Expand
+                state.expandedNodes.add(nodeId);
+                childrenDiv.classList.add('expanded');
+                expandIcon.textContent = '▼';
+
+                // Load children if not loaded
+                if (!state.loadedNodes.has(nodeId)) {
+                    await loadFolderChildren(storageName, path, node);
+                }
+            }
+        }
+
+        // Handle click on a file node
+        async function handleFileNodeClick(node) {
+            const storageName = node.dataset.storage;
+            const path = node.dataset.path;
+
+            // Update selected state
+            elements.fileTree.querySelectorAll('.tree-node-row').forEach(row => row.classList.remove('selected'));
+            node.querySelector('.tree-node-row').classList.add('selected');
+
+            // Track selection for delete
+            state.selectedItem = { type: 'file', storage: storageName, path: path };
+            elements.btnDelete.disabled = false;
+
+            // Update current storage
+            state.storage = storageName;
+            elements.storageSelect.value = storageName;
+            elements.newDocStorage.value = storageName;
+            elements.uploadStorage.value = storageName;
+            elements.newFolderStorage.value = storageName;
+
+            // Open file
+            await openFile(path);
+        }
+
+        // Handle selection of a folder (for delete purposes)
+        function selectFolderNode(node) {
+            const storageName = node.dataset.storage;
+            const path = node.dataset.path;
+
+            // Update selected state
+            elements.fileTree.querySelectorAll('.tree-node-row').forEach(row => row.classList.remove('selected'));
+            node.querySelector('.tree-node-row').classList.add('selected');
+
+            // Track selection for delete
+            state.selectedItem = { type: 'folder', storage: storageName, path: path };
+            elements.btnDelete.disabled = false;
+
+            // Update current storage
+            state.storage = storageName;
+            elements.storageSelect.value = storageName;
+            elements.newDocStorage.value = storageName;
+            elements.uploadStorage.value = storageName;
+            elements.newFolderStorage.value = storageName;
+        }
+
+        // Refresh tree and expand to a specific file path
+        async function refreshTreeAndExpandTo(storageName, filePath) {
+            // Clear loaded nodes to force reload
+            state.loadedNodes.clear();
+
+            // Calculate which nodes need to be expanded
+            const pathParts = filePath.split('/').filter(p => p);
+            pathParts.pop();  // Remove filename
+
+            // Add storage and all parent folders to expanded set
+            state.expandedNodes.add(`storage:${storageName}`);
+            let currentPath = '';
+            pathParts.forEach(part => {
+                currentPath += '/' + part;
+                state.expandedNodes.add(`folder:${storageName}:${currentPath}`);
+            });
+
+            // Reload storages which will restore the expanded state
+            await loadStorages(state.tenant);
+        }
+
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                'docx': 'file-earmark-word',
+                'doc': 'file-earmark-word',
+                'xlsx': 'file-earmark-excel',
+                'xls': 'file-earmark-excel',
+                'pptx': 'file-earmark-ppt',
+                'ppt': 'file-earmark-ppt',
+                'pdf': 'file-earmark-pdf',
+                'txt': 'file-earmark-text',
+                'odt': 'file-earmark-text',
+                'ods': 'file-earmark-spreadsheet',
+                'odp': 'file-earmark-slides',
+            };
+            return icons[ext] || 'file-earmark';
+        }
+
+        /**
+         * Build Collabora form data for POST submission.
+         * Per Collabora SDK, ui_defaults MUST be passed via form POST, not URL params.
+         * @see https://sdk.collaboraonline.com/docs/theming.html
+         */
+        function buildCollaboraFormData() {
+            const formData = {
+                urlParams: [],      // URL params (lang, closebutton)
+                ui_defaults: [],    // Semicolon-separated ui_defaults (UIMode, etc.)
+            };
+
+            // UI Mode (mutually exclusive)
+            // Note: Since Collabora 21.11, use 'tabbed' instead of 'notebookbar'
+            const notebookbar = document.getElementById('opt-notebookbar')?.checked;
+            const classic = document.getElementById('opt-classic')?.checked;
+            const compact = document.getElementById('opt-compact')?.checked;
+
+            if (notebookbar) {
+                formData.ui_defaults.push('UIMode=tabbed');
+            } else if (classic) {
+                formData.ui_defaults.push('UIMode=classic');
+            } else if (compact) {
+                formData.ui_defaults.push('UIMode=compact');
+            }
+
+            // UI Elements - use correct Collabora parameter names
+            const statusbar = document.getElementById('opt-statusbar')?.checked;
+            const ruler = document.getElementById('opt-ruler')?.checked;
+            const sidebar = document.getElementById('opt-sidebar')?.checked;
+
+            if (!statusbar) formData.ui_defaults.push('TextStatusbar=false');
+            if (!ruler) formData.ui_defaults.push('TextRuler=false');
+            if (sidebar) formData.ui_defaults.push('TextSidebar=true');
+
+            // Other options - these are URL params
+            const darkmode = document.getElementById('opt-darkmode')?.checked;
+            const closebutton = document.getElementById('opt-closebutton')?.checked;
+
+            if (darkmode) formData.urlParams.push('darkTheme=true');
+            if (closebutton) formData.urlParams.push('closebutton=1');
+
+            // Always set language to Italian
+            formData.urlParams.push('lang=it');
+
+            console.log('Collabora formData:', formData);
+            return formData;
+        }
+
+        /**
+         * Open Collabora editor using form POST method.
+         * This is required for ui_defaults to work correctly.
+         */
+        function openCollaboraWithForm(wopiSrc, accessToken, formData) {
+            const iframe = elements.editorFrame;
+            const iframeName = 'collabora-frame';
+            iframe.name = iframeName;
+
+            // Build URL with basic params
+            const urlParams = formData.urlParams.join('&');
+            const editorUrl = `${CONFIG.onlyofficeUrl}/browser/dist/cool.html?WOPISrc=${wopiSrc}${urlParams ? '&' + urlParams : ''}`;
+
+            // Create form
+            const form = document.createElement('form');
+            form.action = editorUrl;
+            form.method = 'POST';
+            form.target = iframeName;
+            form.style.display = 'none';
+
+            // Add access_token as hidden field
+            const tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = 'access_token';
+            tokenInput.value = accessToken;
+            form.appendChild(tokenInput);
+
+            // Add ui_defaults as hidden field (if any)
+            if (formData.ui_defaults.length > 0) {
+                const uiDefaultsInput = document.createElement('input');
+                uiDefaultsInput.type = 'hidden';
+                uiDefaultsInput.name = 'ui_defaults';
+                uiDefaultsInput.value = formData.ui_defaults.join(';');
+                form.appendChild(uiDefaultsInput);
+                console.log('ui_defaults:', formData.ui_defaults.join(';'));
+            }
+
+            // Append form, submit, remove
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+
+            console.log('Collabora form submitted to:', editorUrl);
+        }
+
+        // Setup UI mode radio behavior (only one can be selected)
+        function setupCollaboraUIOptions() {
+            const uiModes = ['opt-notebookbar', 'opt-classic', 'opt-compact'];
+
+            uiModes.forEach(id => {
+                const item = document.getElementById(id);
+                if (item) {
+                    item.addEventListener('sl-select', () => {
+                        // Uncheck other modes
+                        uiModes.forEach(otherId => {
+                            if (otherId !== id) {
+                                const other = document.getElementById(otherId);
+                                if (other) other.checked = false;
+                            }
+                        });
+                        item.checked = true;
+
+                        // Show info about needing to reopen file
+                        showUIChangeNotice();
+                    });
+                }
+            });
+
+            // Other options just show notice
+            ['opt-statusbar', 'opt-ruler', 'opt-sidebar', 'opt-darkmode', 'opt-closebutton'].forEach(id => {
+                const item = document.getElementById(id);
+                if (item) {
+                    item.addEventListener('sl-select', () => {
+                        showUIChangeNotice();
+                    });
+                }
+            });
+        }
+
+        function showUIChangeNotice() {
+            // Only show if a file is open
+            if (state.currentSession) {
+                const notice = document.createElement('sl-alert');
+                notice.variant = 'primary';
+                notice.closable = true;
+                notice.duration = 4000;
+                notice.innerHTML = `
+                    <sl-icon slot="icon" name="info-circle"></sl-icon>
+                    Reopen the file to apply UI changes
+                `;
+                document.body.appendChild(notice);
+                notice.toast();
+            }
+        }
+
+        // Open file in OnlyOffice
+        async function openFile(filePath) {
+            try {
+                // Create WOPI session
+                const session = await apiCall('/sessions/create', 'POST', {
+                    storage_name: state.storage,
+                    file_path: filePath,
+                    permissions: ['view', 'edit'],
+                    account: 'demo-user',
+                    user: 'Demo User',
+                });
+
+                state.currentSession = session;
+
+                // Build WOPISrc URL - use wopiProxyUrlForEditor because OnlyOffice runs in Docker
+                const wopiSrc = encodeURIComponent(`${CONFIG.wopiProxyUrlForEditor}/wopi/files/${session.file_id}`);
+
+                // Determine document type from extension
+                const ext = filePath.split('.').pop().toLowerCase();
+                const docType = getOnlyOfficeDocType(ext);
+                const action = 'edit';  // or 'view'
+
+                // Build OnlyOffice WOPI URL
+                // Format: http://onlyoffice/hosting/wopi/{docType}/{action}?WOPISrc={wopiSrc}&access_token={token}
+                const editorUrl = `${CONFIG.onlyofficeUrl}/hosting/wopi/${docType}/${action}?WOPISrc=${wopiSrc}&access_token=${session.access_token}`;
+
+                console.log('OnlyOffice URL:', editorUrl);
+
+                // Show editor
+                elements.editorPlaceholder.style.display = 'none';
+                elements.editorToolbar.style.display = 'flex';
+                elements.editorFrame.style.display = 'block';
+                elements.editorFrame.src = editorUrl;
+
+                elements.currentFileName.textContent = filePath.split('/').pop();
+                elements.btnSave.disabled = true;
+                state.isModified = false;
+                updateStatus('connected');
+
+                // Listen for postMessage from OnlyOffice
+                setupPostMessageListener();
+
+            } catch (e) {
+                console.error('Failed to open file:', e);
+                alert(`Failed to open file: ${e.message}`);
+            }
+        }
+
+        // Get OnlyOffice document type from file extension
+        function getOnlyOfficeDocType(ext) {
+            const wordExts = ['doc', 'docx', 'docm', 'dot', 'dotx', 'dotm', 'odt', 'fodt', 'ott', 'rtf', 'txt', 'html', 'htm', 'mht', 'xml', 'pdf', 'djvu', 'fb2', 'epub', 'xps', 'oxps'];
+            const cellExts = ['xls', 'xlsx', 'xlsm', 'xlt', 'xltx', 'xltm', 'ods', 'fods', 'ots', 'csv'];
+            const slideExts = ['ppt', 'pptx', 'pptm', 'pot', 'potx', 'potm', 'odp', 'fodp', 'otp'];
+
+            if (wordExts.includes(ext)) return 'word';
+            if (cellExts.includes(ext)) return 'cell';
+            if (slideExts.includes(ext)) return 'slide';
+            return 'word';  // default
+        }
+
+        // Setup postMessage listener for OnlyOffice communication
+        function setupPostMessageListener() {
+            window.addEventListener('message', handlePostMessage);
+        }
+
+        function handlePostMessage(event) {
+            // Verify origin
+            if (!event.origin.startsWith(CONFIG.onlyofficeUrl)) return;
+
+            let data;
+            try {
+                data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+            } catch (e) {
+                return;
+            }
+
+            console.log('PostMessage from OnlyOffice:', data);
+
+            switch (data.MessageId) {
+                case 'App_LoadingStatus':
+                    if (data.Values?.Status === 'Document_Loaded') {
+                        // Document is ready, send Host_PostmessageReady
+                        sendToEditor({ MessageId: 'Host_PostmessageReady' });
+                    }
+                    break;
+
+                case 'Doc_ModifiedStatus':
+                    state.isModified = data.Values?.Modified === true;
+                    elements.btnSave.disabled = !state.isModified;
+                    updateStatus(state.isModified ? 'modified' : 'connected');
+                    break;
+
+                case 'UI_Save':
+                    // User clicked save in Collabora UI
+                    console.log('Save requested by user');
+                    break;
+
+                case 'Action_Save_Resp':
+                    // Save completed
+                    if (data.Values?.success) {
+                        state.isModified = false;
+                        elements.btnSave.disabled = true;
+                        updateStatus('connected');
+                    }
+                    break;
+            }
+        }
+
+        function sendToEditor(message) {
+            const frame = elements.editorFrame.contentWindow;
+            if (frame) {
+                frame.postMessage(JSON.stringify(message), CONFIG.onlyofficeUrl);
+            }
+        }
+
+        // Update status indicator
+        function updateStatus(status) {
+            elements.statusDot.className = 'status-dot';
+            if (status === 'connected') {
+                elements.statusDot.classList.add('connected');
+                elements.statusDot.title = 'Connected';
+                elements.currentFileStatus.textContent = '';
+            } else if (status === 'modified') {
+                elements.statusDot.classList.add('modified');
+                elements.statusDot.title = 'Document modified';
+                elements.currentFileStatus.textContent = ' (modified)';
+            }
+        }
+
+        // Close editor
+        function closeEditor() {
+            if (state.isModified) {
+                if (!confirm('Document has unsaved changes. Close anyway?')) {
+                    return;
+                }
+            }
+
+            elements.editorFrame.src = '';
+            elements.editorFrame.style.display = 'none';
+            elements.editorToolbar.style.display = 'none';
+            elements.editorPlaceholder.style.display = 'flex';
+
+            state.currentSession = null;
+            state.isModified = false;
+
+            elements.fileTree.querySelectorAll('.tree-item').forEach(i => i.classList.remove('selected'));
+        }
+
+        // Save document
+        function saveDocument() {
+            // Send save command to Collabora
+            sendToEditor({
+                MessageId: 'Action_Save',
+                Values: {
+                    DontTerminateEdit: true,
+                    DontSaveIfUnmodified: true,
+                    Notify: true,
+                }
+            });
+        }
+
+        // Convert file to base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    // Remove data URL prefix (e.g., "data:application/pdf;base64,")
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Upload file
+        async function uploadFile(file, storageName, basePath = '/') {
+            const base64Content = await fileToBase64(file);
+            const normalizedPath = basePath.startsWith('/') ? basePath : `/${basePath}`;
+            const filePath = normalizedPath.endsWith('/')
+                ? `${normalizedPath}${file.name}`
+                : `${normalizedPath}/${file.name}`;
+
+            console.log('Uploading file:', { storage: storageName, path: filePath, size: file.size });
+
+            try {
+                await apiCall('/storages/upload_file', 'POST', {
+                    storage_name: storageName,
+                    path: filePath,
+                    file_content: base64Content,
+                });
+
+                // Refresh tree and expand to the file's location
+                state.storage = storageName;
+                elements.storageSelect.value = storageName;
+                await refreshTreeAndExpandTo(storageName, filePath);
+
+                // Open the uploaded file
+                await openFile(filePath);
+
+            } catch (e) {
+                console.error('Failed to upload file:', e);
+                alert(`Failed to upload file: ${e.message}`);
+            }
+        }
+
+        // Create new document
+        async function createNewDocument(type, name, storageName, basePath = '/') {
+            const extensions = { docx: '.docx', xlsx: '.xlsx', pptx: '.pptx' };
+            const filename = name.endsWith(extensions[type]) ? name : `${name}${extensions[type]}`;
+            // Normalize path: ensure it starts with / and join with filename
+            const normalizedPath = basePath.startsWith('/') ? basePath : `/${basePath}`;
+            const filePath = normalizedPath.endsWith('/')
+                ? `${normalizedPath}${filename}`
+                : `${normalizedPath}/${filename}`;
+
+            console.log('Creating file:', { storage: storageName, path: filePath, type });
+
+            try {
+                // Create empty file in storage
+                await apiCall('/storages/create_file', 'POST', {
+                    storage_name: storageName,
+                    path: filePath,
+                });
+
+                // Refresh tree and expand to the file's location
+                state.storage = storageName;
+                elements.storageSelect.value = storageName;
+                await refreshTreeAndExpandTo(storageName, filePath);
+
+                // Open the new file
+                await openFile(filePath);
+
+            } catch (e) {
+                console.error('Failed to create document:', e);
+                alert(`Failed to create document: ${e.message}`);
+            }
+        }
+
+        // Event listeners
+        elements.tenantSelect.addEventListener('sl-change', (e) => {
+            state.tenant = e.target.value;
+            loadStorages(state.tenant);
+        });
+
+        elements.storageSelect.addEventListener('sl-change', (e) => {
+            state.storage = e.target.value;
+            // Expand the selected storage in tree
+            const nodeId = `storage:${state.storage}`;
+            if (!state.expandedNodes.has(nodeId)) {
+                const node = elements.fileTree.querySelector(`[data-node-id="${nodeId}"]`);
+                if (node) {
+                    toggleStorageNode(node);
+                }
+            }
+        });
+
+        elements.btnNew.addEventListener('click', () => {
+            elements.newDocDialog.show();
+        });
+
+        elements.btnUpload.addEventListener('click', () => {
+            elements.uploadDialog.show();
+        });
+
+        elements.btnUploadConfirm.addEventListener('click', async () => {
+            const file = elements.uploadFile.files[0];
+            const storage = elements.uploadStorage.value;
+            const path = elements.uploadPath.value.trim() || '/';
+
+            if (!file) {
+                alert('Please select a file to upload');
+                return;
+            }
+            if (!storage) {
+                alert('Please select a storage');
+                return;
+            }
+
+            elements.uploadDialog.hide();
+            await uploadFile(file, storage, path);
+            elements.uploadFile.value = '';
+            elements.uploadPath.value = '/';
+        });
+
+        elements.btnRefresh.addEventListener('click', () => {
+            // Clear loaded state to force reload
+            state.loadedNodes.clear();
+            loadStorages(state.tenant);
+        });
+
+        elements.btnSave.addEventListener('click', saveDocument);
+        elements.btnClose.addEventListener('click', closeEditor);
+
+        // New document dialog
+        document.querySelectorAll('.new-doc-option').forEach(opt => {
+            opt.addEventListener('click', () => {
+                document.querySelectorAll('.new-doc-option').forEach(o => o.style.borderColor = '');
+                opt.style.borderColor = 'var(--sl-color-primary-500)';
+                opt.dataset.selected = 'true';
+            });
+        });
+
+        elements.btnCreateDoc.addEventListener('click', async () => {
+            const selected = document.querySelector('.new-doc-option[data-selected="true"]');
+            const storage = elements.newDocStorage.value;
+            const path = elements.newDocPath.value.trim() || '/';
+            const name = elements.newDocName.value.trim();
+
+            if (!selected) {
+                alert('Please select a document type');
+                return;
+            }
+            if (!storage) {
+                alert('Please select a storage');
+                return;
+            }
+            if (!name) {
+                alert('Please enter a document name');
+                return;
+            }
+
+            elements.newDocDialog.hide();
+            await createNewDocument(selected.dataset.type, name, storage, path);
+            elements.newDocName.value = '';
+            elements.newDocPath.value = '/';
+            document.querySelectorAll('.new-doc-option').forEach(o => {
+                o.style.borderColor = '';
+                delete o.dataset.selected;
+            });
+        });
+
+        // Manage Storages
+        elements.btnManageStorages.addEventListener('click', async () => {
+            await renderStoragesList();
+            elements.storagesDialog.show();
+        });
+
+        async function renderStoragesList() {
+            try {
+                const storages = await apiCall(`/storages/list?tenant_id=${state.tenant}`);
+                if (storages.length === 0) {
+                    elements.storagesList.innerHTML = '<p style="color: var(--sl-color-neutral-500);">No storages configured</p>';
+                    return;
+                }
+                let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
+                html += '<tr style="border-bottom: 1px solid var(--sl-color-neutral-200);">';
+                html += '<th style="text-align: left; padding: 0.5rem;">Name</th>';
+                html += '<th style="text-align: left; padding: 0.5rem;">Base Path</th>';
+                html += '<th style="padding: 0.5rem;"></th>';
+                html += '</tr>';
+                storages.forEach(s => {
+                    const basePath = s.config?.base_path || '-';
+                    html += `<tr style="border-bottom: 1px solid var(--sl-color-neutral-100);">`;
+                    html += `<td style="padding: 0.5rem; font-weight: 500;">${s.name}</td>`;
+                    html += `<td style="padding: 0.5rem; font-family: monospace; font-size: 0.8rem;">${basePath}</td>`;
+                    html += `<td style="padding: 0.5rem; text-align: right;">`;
+                    html += `<sl-button size="small" variant="danger" class="btn-delete-storage" data-name="${s.name}">`;
+                    html += `<sl-icon name="trash"></sl-icon>`;
+                    html += `</sl-button>`;
+                    html += `</td></tr>`;
+                });
+                html += '</table>';
+                elements.storagesList.innerHTML = html;
+
+                // Add delete handlers
+                elements.storagesList.querySelectorAll('.btn-delete-storage').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const name = btn.dataset.name;
+                        if (confirm(`Delete storage "${name}"?`)) {
+                            await deleteStorage(name);
+                        }
+                    });
+                });
+            } catch (e) {
+                console.error('Failed to load storages:', e);
+                elements.storagesList.innerHTML = '<p style="color: var(--sl-color-danger-500);">Failed to load storages</p>';
+            }
+        }
+
+        async function deleteStorage(name) {
+            try {
+                await apiCall(`/storages/remove?tenant_id=${state.tenant}&name=${name}`, 'DELETE');
+                await renderStoragesList();
+                await loadStorages(state.tenant);
+            } catch (e) {
+                console.error('Failed to delete storage:', e);
+                alert(`Failed to delete storage: ${e.message}`);
+            }
+        }
+
+        elements.btnAddStorage.addEventListener('click', async () => {
+            const name = elements.newStorageName.value.trim().toUpperCase();
+            const basePath = elements.newStoragePath.value.trim();
+
+            if (!name) {
+                alert('Please enter a storage name');
+                return;
+            }
+            if (!basePath) {
+                alert('Please enter a base path');
+                return;
+            }
+
+            try {
+                await apiCall('/storages/add', 'POST', {
+                    tenant_id: state.tenant,
+                    name: name,
+                    protocol: 'local',
+                    config: { base_path: basePath }
+                });
+
+                elements.newStorageName.value = '';
+                elements.newStoragePath.value = '';
+                await renderStoragesList();
+                await loadStorages(state.tenant);
+            } catch (e) {
+                console.error('Failed to add storage:', e);
+                alert(`Failed to add storage: ${e.message}`);
+            }
+        });
+
+        // New Folder button
+        elements.btnNewFolder.addEventListener('click', () => {
+            // Pre-fill parent path if a folder is selected
+            if (state.selectedItem?.type === 'folder') {
+                elements.newFolderParent.value = state.selectedItem.path;
+                elements.newFolderStorage.value = state.selectedItem.storage;
+            } else if (state.selectedItem?.type === 'file') {
+                // Use parent of selected file
+                const parentPath = state.selectedItem.path.split('/').slice(0, -1).join('/') || '/';
+                elements.newFolderParent.value = parentPath;
+                elements.newFolderStorage.value = state.selectedItem.storage;
+            }
+            elements.newFolderDialog.show();
+        });
+
+        elements.btnCreateFolder.addEventListener('click', async () => {
+            const storage = elements.newFolderStorage.value;
+            const parentPath = elements.newFolderParent.value.trim() || '/';
+            const folderName = elements.newFolderName.value.trim();
+
+            if (!storage) {
+                alert('Please select a storage');
+                return;
+            }
+            if (!folderName) {
+                alert('Please enter a folder name');
+                return;
+            }
+
+            // Build full path
+            const normalizedParent = parentPath.startsWith('/') ? parentPath : `/${parentPath}`;
+            const fullPath = normalizedParent.endsWith('/')
+                ? `${normalizedParent}${folderName}`
+                : `${normalizedParent}/${folderName}`;
+
+            try {
+                await apiCall('/storages/create_folder', 'POST', {
+                    storage_name: storage,
+                    path: fullPath,
+                });
+
+                elements.newFolderDialog.hide();
+                elements.newFolderName.value = '';
+                elements.newFolderParent.value = '/';
+
+                // Refresh tree
+                state.loadedNodes.clear();
+                await loadStorages(state.tenant);
+
+            } catch (e) {
+                console.error('Failed to create folder:', e);
+                alert(`Failed to create folder: ${e.message}`);
+            }
+        });
+
+        // Delete button
+        elements.btnDelete.addEventListener('click', () => {
+            if (!state.selectedItem) return;
+
+            const itemType = state.selectedItem.type === 'folder' ? 'folder' : 'file';
+            const itemName = state.selectedItem.path.split('/').pop();
+            elements.deleteMessage.textContent = `Are you sure you want to delete the ${itemType} "${itemName}"?`;
+            elements.deleteDialog.show();
+        });
+
+        elements.btnDeleteCancel.addEventListener('click', () => {
+            elements.deleteDialog.hide();
+        });
+
+        elements.btnDeleteConfirm.addEventListener('click', async () => {
+            if (!state.selectedItem) return;
+
+            try {
+                await apiCall('/storages/delete_file', 'POST', {
+                    storage_name: state.selectedItem.storage,
+                    path: state.selectedItem.path,
+                });
+
+                elements.deleteDialog.hide();
+
+                // Close editor if deleting the open file
+                if (state.currentSession && state.selectedItem.type === 'file') {
+                    closeEditor();
+                }
+
+                // Clear selection
+                state.selectedItem = null;
+                elements.btnDelete.disabled = true;
+
+                // Refresh tree
+                state.loadedNodes.clear();
+                await loadStorages(state.tenant);
+
+            } catch (e) {
+                console.error('Failed to delete:', e);
+                alert(`Failed to delete: ${e.message}`);
+            }
+        });
+
+        // Initialize
+        async function init() {
+            // Setup Collabora UI options
+            setupCollaboraUIOptions();
+
+            // If tenant from path, use it directly
+            if (pathTenant) {
+                // Update UI to show current tenant
+                document.title = `WOPI Demo - ${pathTenant}`;
+                document.querySelector('header h1').textContent = `WOPI Demo - ${pathTenant.toUpperCase()}`;
+
+                // Hide tenant selector when using path-based routing
+                elements.tenantSelect.style.display = 'none';
+
+                // Load storages directly for this tenant
+                await loadStorages(state.tenant);
+            } else {
+                // Normal mode - load tenants and let user select
+                await loadTenants();
+                if (state.tenant) {
+                    await loadStorages(state.tenant);
+                }
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -98,9 +98,47 @@ class SqlDb:
         return self.tables[name]
 
     async def check_structure(self) -> None:
-        """Create all registered tables if they don't exist."""
-        for table in self.tables.values():
+        """Create all registered tables if they don't exist.
+
+        Tables are sorted by foreign key dependencies to ensure referenced
+        tables are created before tables that reference them.
+        """
+        sorted_tables = self._sort_tables_by_dependencies()
+        for table in sorted_tables:
             await table.create_schema()
+
+    def _sort_tables_by_dependencies(self) -> list:
+        """Sort tables so that tables with FK dependencies come after their targets."""
+        # Build dependency graph: table_name -> set of tables it depends on
+        dependencies: dict[str, set[str]] = {}
+        for name, table in self.tables.items():
+            deps = set()
+            for col in table.columns.values():
+                if col.relation_table and col.relation_table in self.tables:
+                    deps.add(col.relation_table)
+            dependencies[name] = deps
+
+        # Topological sort (Kahn's algorithm)
+        result = []
+        no_deps = [name for name, deps in dependencies.items() if not deps]
+
+        while no_deps:
+            name = no_deps.pop(0)
+            result.append(self.tables[name])
+            # Remove this table from all dependency sets
+            for deps in dependencies.values():
+                deps.discard(name)
+            # Find new tables with no remaining dependencies
+            for other_name, deps in dependencies.items():
+                if not deps and other_name not in [t.name for t in result] and other_name not in no_deps:
+                    no_deps.append(other_name)
+
+        # Add any remaining tables (shouldn't happen with valid schema)
+        for _name, table in self.tables.items():
+            if table not in result:
+                result.append(table)
+
+        return result
 
     # -------------------------------------------------------------------------
     # Direct adapter access

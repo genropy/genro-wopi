@@ -50,7 +50,9 @@ class StorageNode:
         self._mount_name = mount_name
         self._path = path.lstrip("/")
         self._config = config
-        self._protocol = config.get("protocol", "local")
+        # Normalize protocol: "file" and "local" are equivalent (local filesystem)
+        protocol = config.get("protocol", "local")
+        self._protocol = "local" if protocol in ("local", "file") else protocol
 
     # ----------------------------------------------------------------- Properties (non-I/O, sync)
 

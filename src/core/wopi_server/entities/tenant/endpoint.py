@@ -101,6 +101,8 @@ class TenantEndpoint(BaseEndpoint):
             Tenant dict.
         """
         data = {k: v for k, v in locals().items() if k != "self"}
+        # Convert bool to int for database storage
+        data["active"] = 1 if active else 0
         await self.table.add(data)
         tenant = await self.table.get(id)
         return tenant
@@ -175,8 +177,68 @@ class TenantEndpoint(BaseEndpoint):
         fields = {
             k: v for k, v in locals().items() if k not in ("self", "tenant_id") and v is not None
         }
+        # Convert bool to int for database storage
+        if "active" in fields:
+            fields["active"] = 1 if fields["active"] else 0
         await self.table.update_fields(tenant_id, fields)
         return await self.table.get(tenant_id)
+
+    # -------------------------------------------------------------------------
+    # API Key Management
+    # -------------------------------------------------------------------------
+
+    @POST
+    async def create_api_key(
+        self,
+        tenant_id: str,
+        expires_at: int | None = None,
+    ) -> dict:
+        """Create a new API key for a tenant.
+
+        Generates a new random API key, replacing any existing key.
+        The raw key is returned once and cannot be retrieved later.
+        Save it immediately!
+
+        Args:
+            tenant_id: The tenant ID.
+            expires_at: Optional Unix timestamp for key expiration.
+
+        Returns:
+            Dict with ok=True and api_key (show once).
+
+        Raises:
+            ValueError: If tenant not found.
+        """
+        api_key = await self.table.create_api_key(tenant_id, expires_at)
+        if api_key is None:
+            raise ValueError(f"Tenant '{tenant_id}' not found")
+        return {
+            "ok": True,
+            "tenant_id": tenant_id,
+            "api_key": api_key,
+            "message": "Save this API key - it will not be shown again.",
+        }
+
+    @POST
+    async def revoke_api_key(self, tenant_id: str) -> dict:
+        """Revoke the API key for a tenant.
+
+        Removes the API key, preventing further authentication with it.
+        The tenant can still be accessed via instance token.
+
+        Args:
+            tenant_id: The tenant ID.
+
+        Returns:
+            Dict with ok=True.
+
+        Raises:
+            ValueError: If tenant not found.
+        """
+        success = await self.table.revoke_api_key(tenant_id)
+        if not success:
+            raise ValueError(f"Tenant '{tenant_id}' not found")
+        return {"ok": True, "tenant_id": tenant_id, "message": "API key revoked"}
 
 
 __all__ = ["TenantEndpoint", "WopiMode"]

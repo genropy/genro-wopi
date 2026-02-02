@@ -4,14 +4,11 @@
 This module provides the TenantsTable class for managing tenant
 configurations in a multi-tenant WOPI server environment.
 
-In Community Edition (CE), a single "default" tenant is used implicitly.
-Enterprise Edition (EE) extends with full multi-tenant management via
-TenantsTable_EE mixin, adding API key authentication and tenant CRUD.
-
 Each tenant can configure:
     - WOPI client mode: pool (Softwell shared), own (customer server), disabled
     - Custom WOPI client URL (for mode="own")
     - Client authentication (for callbacks)
+    - API key for tenant-scoped authentication
 
 Example:
     Basic tenant operations::
@@ -23,15 +20,18 @@ Example:
 
         tenants = wopi.db.table("tenants")
 
-        # Ensure default tenant exists (CE mode)
-        await tenants.ensure_default()
+        # Create tenant with API key
+        api_key = await tenants.create_api_key("acme")
 
-        # Get tenant config
-        tenant = await tenants.get("default")
+        # Get tenant by API key
+        tenant = await tenants.get_tenant_by_token(api_key)
 """
 
 from __future__ import annotations
 
+import hashlib
+import secrets
+from datetime import datetime, timezone
 from typing import Any
 
 from sql import Integer, String, Table, Timestamp
@@ -222,6 +222,104 @@ class TenantsTable(Table):
             return tenant.get("wopi_client_url") or default_url
         else:  # pool
             return default_url
+
+    # -------------------------------------------------------------------------
+    # API Key Management
+    # -------------------------------------------------------------------------
+
+    async def create_api_key(self, tenant_id: str, expires_at: int | None = None) -> str | None:
+        """Create a new API key for a tenant.
+
+        Generates a new random API key, replacing any existing key.
+        The raw key is returned once and cannot be retrieved later.
+
+        Args:
+            tenant_id: The tenant ID.
+            expires_at: Optional Unix timestamp for key expiration.
+
+        Returns:
+            The raw API key (show once), or None if tenant not found.
+        """
+        tenant = await self.get(tenant_id)
+        if not tenant:
+            return None
+
+        raw_key = secrets.token_urlsafe(32)
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+
+        await self.db.adapter.execute(
+            """
+            UPDATE tenants
+            SET api_key_hash = :key_hash,
+                api_key_expires_at = :expires_at,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :tenant_id
+            """,
+            {"tenant_id": tenant_id, "key_hash": key_hash, "expires_at": expires_at},
+        )
+        return raw_key
+
+    async def get_tenant_by_token(self, raw_key: str) -> dict[str, Any] | None:
+        """Find tenant by API key token.
+
+        Looks up the tenant associated with the given API key.
+        Validates that the key has not expired.
+
+        Args:
+            raw_key: The raw API key to look up.
+
+        Returns:
+            Tenant dict if found and not expired, None otherwise.
+        """
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        tenant = await self.db.adapter.fetch_one(
+            "SELECT * FROM tenants WHERE api_key_hash = :key_hash",
+            {"key_hash": key_hash},
+        )
+        if not tenant:
+            return None
+
+        expires_at = tenant.get("api_key_expires_at")
+        if expires_at:
+            # Handle both datetime (PostgreSQL) and int (SQLite) types
+            if isinstance(expires_at, datetime):
+                now = datetime.now(timezone.utc)
+                # Make expires_at timezone-aware if it isn't
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if expires_at < now:
+                    return None  # Expired
+            else:
+                # SQLite returns int (Unix timestamp)
+                now_ts = datetime.now(timezone.utc).timestamp()
+                if expires_at < now_ts:
+                    return None  # Expired
+
+        return self._decode_active(tenant)
+
+    async def revoke_api_key(self, tenant_id: str) -> bool:
+        """Revoke the API key for a tenant.
+
+        Removes the API key, preventing further authentication.
+        The tenant can still be accessed via instance token.
+
+        Args:
+            tenant_id: The tenant ID.
+
+        Returns:
+            True if key was revoked, False if tenant not found.
+        """
+        rowcount = await self.db.adapter.execute(
+            """
+            UPDATE tenants
+            SET api_key_hash = NULL,
+                api_key_expires_at = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :tenant_id
+            """,
+            {"tenant_id": tenant_id},
+        )
+        return rowcount > 0
 
 
 __all__ = ["TenantsTable"]

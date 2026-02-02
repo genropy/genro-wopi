@@ -351,13 +351,25 @@ class SessionsTable(Table):
         Returns:
             List of active session dicts.
         """
-        now = _utcnow().isoformat()
+        now = _utcnow()
         where = {}
         if tenant_id:
             where["tenant_id"] = tenant_id
 
         sessions = await self.select(where=where if where else None, order_by="created_at DESC")
-        return [s for s in sessions if s.get("expires_at", "") > now]
+        # Filter active sessions - handle both datetime objects (PostgreSQL) and strings (SQLite)
+        result = []
+        for s in sessions:
+            expires = s.get("expires_at")
+            if expires:
+                if isinstance(expires, str):
+                    expires = datetime.fromisoformat(expires)
+                # Make both naive for comparison (remove timezone info)
+                if expires.tzinfo is not None:
+                    expires = expires.replace(tzinfo=None)
+                if expires > now:
+                    result.append(s)
+        return result
 
     async def remove(self, session_id: str) -> bool:
         """Delete a session.

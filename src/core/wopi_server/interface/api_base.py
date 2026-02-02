@@ -184,13 +184,18 @@ def register_endpoint(app: FastAPI | APIRouter, endpoint: Any, prefix: str = "")
         doc = method.__doc__ or f"{method_name} operation"
 
         if http_method == "GET" or (http_method == "DELETE" and param_count <= 3):
-            _register_query_route(app, path, method, http_method, doc)
+            _register_query_route(app, path, method, http_method, doc, endpoint)
         else:
             _register_body_route(app, path, method, http_method, doc, method_name, endpoint)
 
 
 def _register_query_route(
-    app: FastAPI | APIRouter, path: str, method: Callable, http_method: str, doc: str
+    app: FastAPI | APIRouter,
+    path: str,
+    method: Callable,
+    http_method: str,
+    doc: str,
+    endpoint: Any = None,
 ) -> None:
     """Register route with query parameters."""
     sig = inspect.signature(method)
@@ -204,10 +209,27 @@ def _register_query_route(
         default = param.default if param.default is not inspect.Parameter.empty else ...
         params.append((param_name, ann, default))
 
-    async def handler(**kwargs: Any) -> Any:
+    async def handler(request: Request, **kwargs: Any) -> Any:
+        # Propagate tenant_id from token authentication to endpoint
+        if endpoint is not None:
+            tenant_id = getattr(request.state, "token_tenant_id", None)
+            if tenant_id:
+                endpoint._current_tenant_id = tenant_id
+            elif getattr(request.state, "is_admin", False):
+                # Admin token - use default tenant unless specified in request
+                endpoint._current_tenant_id = kwargs.get("tenant_id", "default")
+            else:
+                endpoint._current_tenant_id = "default"
         return await method(**kwargs)
 
+    # Build signature with Request as first param + query params
     new_params = [
+        inspect.Parameter(
+            name="request",
+            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            annotation=Request,
+        )
+    ] + [
         inspect.Parameter(
             name=p[0],
             kind=inspect.Parameter.KEYWORD_ONLY,
@@ -225,19 +247,35 @@ def _register_query_route(
         app.delete(path, summary=doc.split("\n")[0])(handler)
 
 
-def _make_body_handler(method: Callable, RequestModel: type) -> Callable:
+def _make_body_handler(method: Callable, RequestModel: type, endpoint: Any = None) -> Callable:
     """Create handler that accepts body and calls method."""
 
-    async def handler(data: RequestModel) -> Any:  # type: ignore
+    async def handler(request: Request, data: RequestModel) -> Any:  # type: ignore
+        # Propagate tenant_id from token authentication to endpoint
+        if endpoint is not None:
+            tenant_id = getattr(request.state, "token_tenant_id", None)
+            if tenant_id:
+                endpoint._current_tenant_id = tenant_id
+            elif getattr(request.state, "is_admin", False):
+                # Admin token - use default tenant unless specified in body
+                body_data = data.model_dump()
+                endpoint._current_tenant_id = body_data.get("tenant_id", "default")
+            else:
+                endpoint._current_tenant_id = "default"
         return await method(**data.model_dump())
 
     handler.__signature__ = inspect.Signature(  # type: ignore
         parameters=[
             inspect.Parameter(
+                "request",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Request,
+            ),
+            inspect.Parameter(
                 "data",
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
                 annotation=RequestModel,
-            )
+            ),
         ]
     )
     return handler
@@ -258,7 +296,7 @@ def _register_body_route(
     else:
         RequestModel = _create_model_fallback(method, method_name)
 
-    handler = _make_body_handler(method, RequestModel)
+    handler = _make_body_handler(method, RequestModel, endpoint)
     handler.__doc__ = doc
 
     if http_method == "POST":
@@ -459,6 +497,16 @@ def create_app(
     app.state.api_token = api_token
     app.state.tenant_tokens_enabled = tenant_tokens_enabled
 
+    # Enable CORS for development/demo
+    from fastapi.middleware.cors import CORSMiddleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
         request: Request, exc: RequestValidationError
@@ -514,6 +562,188 @@ def _register_instance_endpoints(app: FastAPI, svc: WopiProxy) -> None:
     router = APIRouter(dependencies=[auth_dependency])
     register_endpoint(router, instance_endpoint)
     app.include_router(router)
+
+    # Register WOPI protocol endpoints (no auth dependency - uses access_token in query)
+    _register_wopi_endpoints(app, svc)
+
+
+def _register_wopi_endpoints(app: FastAPI, svc: WopiProxy) -> None:
+    """Register WOPI protocol endpoints for document editing.
+
+    These endpoints follow the WOPI protocol specification and use
+    access_token in query string for authentication (not X-API-Token header).
+    """
+    from fastapi.responses import Response
+
+    @app.get("/wopi/files/{file_id}")
+    async def wopi_check_file_info(
+        file_id: str,
+        access_token: str = Query(..., description="WOPI access token"),
+    ) -> dict:
+        """WOPI CheckFileInfo: Return file metadata.
+
+        Returns file information required by WOPI clients (Collabora, OnlyOffice, etc.)
+        """
+
+        logger.info(f"WOPI CheckFileInfo: file_id={file_id}")
+
+        try:
+            # Get session by file_id
+            sessions_table = svc.db.table("sessions")
+            session = await sessions_table.get_by_file_id(file_id)
+            logger.info(f"WOPI CheckFileInfo: session={session}")
+
+            if not session:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found")
+
+            # Verify access token
+            if session.get("access_token") != access_token:
+                logger.warning("WOPI CheckFileInfo: token mismatch")
+                raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid access token")
+
+            # Check session expiration using UTC (same as SessionsTable)
+            expires_at_str = session.get("expires_at")
+            if expires_at_str:
+                from datetime import datetime, timezone
+                # Parse ISO datetime and compare with UTC now (all naive, all UTC)
+                expires_dt = datetime.fromisoformat(expires_at_str)
+                now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+                if expires_dt <= now_utc:
+                    logger.warning(f"WOPI CheckFileInfo: session expired (expires={expires_dt}, now={now_utc})")
+                    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired")
+
+            # Get file info from storage
+            tenant_id = session.get("tenant_id", "default")
+            storage_name = session.get("storage_name")
+            file_path = session.get("file_path")
+            logger.info(f"WOPI CheckFileInfo: tenant={tenant_id}, storage={storage_name}, path={file_path}")
+
+            storages_table = svc.db.table("storages")
+            manager = await storages_table.get_storage_manager(tenant_id)
+            logger.info("WOPI CheckFileInfo: got storage manager")
+            node = manager.node(f"{storage_name}:{file_path}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"WOPI CheckFileInfo error: {e}")
+            raise
+
+        if not await node.exists():
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found in storage")
+
+        file_size = await node.size()
+        basename = node.basename
+
+        # WOPI CheckFileInfo response
+        # See: https://docs.microsoft.com/en-us/microsoft-365/cloud-storage-partner-program/rest/files/checkfileinfo
+        return {
+            "BaseFileName": basename,
+            "Size": file_size,
+            "OwnerId": session.get("account", "unknown"),
+            "UserId": session.get("user", "unknown"),
+            "UserFriendlyName": session.get("user", "Unknown User"),
+            "Version": str(int(await node.mtime())),
+            "UserCanWrite": True,
+            "UserCanNotWriteRelative": True,
+            "SupportsUpdate": True,
+            "SupportsLocks": False,  # Simplified - no locking for now
+        }
+
+    @app.get("/wopi/files/{file_id}/contents", response_class=Response)
+    async def wopi_get_file(
+        file_id: str,
+        access_token: str = Query(..., description="WOPI access token"),
+    ):
+        """WOPI GetFile: Download file content."""
+        logger.info(f"WOPI GetFile: file_id={file_id}")
+
+        # Get session by file_id
+        sessions_table = svc.db.table("sessions")
+        session = await sessions_table.get_by_file_id(file_id)
+
+        if not session:
+            logger.warning(f"WOPI GetFile: session not found for file_id={file_id}")
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found")
+
+        # Verify access token
+        if session.get("access_token") != access_token:
+            logger.warning(f"WOPI GetFile: token mismatch for file_id={file_id}")
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid access token")
+
+        # Get file from storage
+        tenant_id = session.get("tenant_id", "default")
+        storage_name = session.get("storage_name")
+        file_path = session.get("file_path")
+        logger.info(f"WOPI GetFile: tenant={tenant_id}, storage={storage_name}, path={file_path}")
+
+        storages_table = svc.db.table("storages")
+        manager = await storages_table.get_storage_manager(tenant_id)
+        node = manager.node(f"{storage_name}:{file_path}")
+
+        # Get actual filesystem path for debugging
+        local_path = node._get_local_path()
+        logger.info(f"WOPI GetFile: local_path={local_path}, exists={local_path.exists()}, is_file={local_path.is_file()}")
+
+        if not await node.exists():
+            logger.warning(f"WOPI GetFile: file not found in storage: {local_path}")
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found in storage")
+
+        if not await node.is_file():
+            logger.warning(f"WOPI GetFile: path is not a file (is directory?): {local_path}")
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Path is not a file")
+
+        try:
+            content = await node.read_bytes()
+            logger.info(f"WOPI GetFile: read {len(content)} bytes from {file_path}")
+        except Exception as e:
+            logger.exception(f"WOPI GetFile: failed to read file: {e}")
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"Failed to read file: {e}")
+
+        return Response(
+            content=content,
+            media_type="application/octet-stream",
+            headers={
+                "X-WOPI-ItemVersion": str(int(await node.mtime())),
+            }
+        )
+
+    @app.post("/wopi/files/{file_id}/contents")
+    async def wopi_put_file(
+        request: Request,
+        file_id: str,
+        access_token: str = Query(..., description="WOPI access token"),
+    ) -> dict:
+        """WOPI PutFile: Save edited file content."""
+        # Get session by file_id
+        sessions_table = svc.db.table("sessions")
+        session = await sessions_table.get_by_file_id(file_id)
+
+        if not session:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "File not found")
+
+        # Verify access token
+        if session.get("access_token") != access_token:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid access token")
+
+        # Get file content from request body
+        content = await request.body()
+
+        # Save to storage
+        tenant_id = session.get("tenant_id", "default")
+        storage_name = session.get("storage_name")
+        file_path = session.get("file_path")
+
+        storages_table = svc.db.table("storages")
+        manager = await storages_table.get_storage_manager(tenant_id)
+        node = manager.node(f"{storage_name}:{file_path}")
+
+        await node.write_bytes(content)
+
+        logger.info(f"WOPI PutFile: saved {len(content)} bytes to {storage_name}:{file_path}")
+
+        return {
+            "ItemVersion": str(int(await node.mtime())),
+        }
 
 
 __all__ = [
