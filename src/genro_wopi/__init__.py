@@ -1,22 +1,39 @@
-# Copyright (c) 2025 Softwell Srl, Milano, Italy
-# SPDX-License-Identifier: Apache-2.0
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Copyright 2025 Softwell S.r.l. - SPDX-License-Identifier: Apache-2.0
+"""genro-wopi: WOPI implementation for the Genropy framework.
 
+This package provides the core WOPI (Web Application Open Platform Interface)
+implementation for the Genropy framework. Supports Collabora Online, OnlyOffice,
+Microsoft 365, and other WOPI-compatible editors.
+
+Main components:
+    WopiConfig: Configuration dataclass
+    WopiProxy: Main proxy with WOPI protocol handlers
+    wopi_config_from_env: Factory to build config from environment
+
+Usage:
+    from genro_wopi import WopiProxy, WopiConfig
+
+    config = WopiConfig(
+        db_path="/data/wopi.db",
+        default_wopi_client_url="https://collabora.softwell.it",
+    )
+    proxy = WopiProxy(config=config)
+    app = proxy.api.app  # FastAPI application
 """
-genro-wopi: WOPI implementation for the Genropy framework.
-"""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
-__all__: list[str] = []
+from .wopi_proxy import WopiConfig, WopiProxy, wopi_config_from_env
+
+__all__ = [
+    "WopiConfig",
+    "WopiProxy",
+    "wopi_config_from_env",
+    "main",
+]
+
+
+def main() -> None:
+    """CLI entry point. Creates a WopiProxy and runs the CLI."""
+    proxy = WopiProxy()
+    proxy.cli()()
